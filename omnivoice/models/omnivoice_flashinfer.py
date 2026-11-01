@@ -42,6 +42,7 @@ from omnivoice.models.omnivoice import (
     _get_time_steps,
     _gumbel_sample,
 )
+from omnivoice.utils.text import apply_pronunciation_overrides
 
 _WORKSPACE_SIZE = 128 * 1024 * 1024
 # Context read by the registered attention function. "wrapper" must be planned
@@ -230,7 +231,9 @@ def _generate_iterative_packed(
     B = task.batch_size
     inputs_list = [
         self._prepare_inference_inputs(
-            task.texts[i],
+            apply_pronunciation_overrides(
+                task.texts[i], gen_config.pronunciation_overrides
+            ),
             task.target_lens[i],
             task.ref_texts[i],
             task.ref_audio_tokens[i],

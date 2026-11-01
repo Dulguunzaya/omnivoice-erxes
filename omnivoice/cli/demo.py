@@ -24,6 +24,7 @@ Usage:
 """
 
 import argparse
+import inspect
 import logging
 from typing import Any, Dict
 
@@ -33,6 +34,7 @@ import torch
 
 from omnivoice import OmniVoice, OmniVoiceGenerationConfig
 from omnivoice.utils.common import get_best_device
+from omnivoice.utils.erxes import ERXES_PRONUNCIATIONS
 from omnivoice.utils.lang_map import LANG_NAMES, lang_display_name
 
 
@@ -171,6 +173,7 @@ def build_demo(
         postprocess_output,
         mode,
         ref_text=None,
+        erxes_mode=False,
     ):
         if not text or not text.strip():
             return None, "Please enter the text to synthesize."
@@ -181,6 +184,7 @@ def build_demo(
             denoise=bool(denoise) if denoise is not None else True,
             preprocess_prompt=bool(preprocess_prompt),
             postprocess_output=bool(postprocess_output),
+            pronunciation_overrides=ERXES_PRONUNCIATIONS if erxes_mode else None,
         )
 
         lang = language if (language and language != "Auto") else None
@@ -215,6 +219,20 @@ def build_demo(
 
     # Allow external wrappers (e.g. spaces.GPU for ZeroGPU Spaces)
     _gen = generate_fn if generate_fn is not None else _gen_core
+    _supports_erxes = any(
+        p.name == "erxes_mode" or p.kind == inspect.Parameter.VAR_KEYWORD
+        for p in inspect.signature(_gen).parameters.values()
+    )
+
+    def _run_generation(*args, erxes_mode=False, **kwargs):
+        if erxes_mode:
+            if not _supports_erxes:
+                return (
+                    None,
+                    "This custom generation wrapper does not support erxes mode.",
+                )
+            kwargs["erxes_mode"] = True
+        return _gen(*args, **kwargs)
 
     # =====================================================================
     # UI
@@ -239,6 +257,18 @@ def build_demo(
             allow_custom_value=False,
             interactive=True,
             info="Keep as Auto to auto-detect the language.",
+        )
+
+    def _erxes_toggle():
+        return gr.Checkbox(
+            label="erxes mode — keep UI names in English",
+            value=False,
+            interactive=_supports_erxes,
+            info="For Mongolian erxes walkthroughs: write narration in Mongolian "
+            "and UI names in English (SidebarPanel, Properties, Widget, etc.). "
+            "Controls pronunciation; does not translate your script."
+            if _supports_erxes
+            else "Unavailable with this custom generation wrapper.",
         )
 
     # Reusable: optional generation settings accordion
@@ -337,6 +367,7 @@ by Xiaomi AI Lab Next-gen Kaldi team.
                             " to auto-transcribe via ASR models.",
                         )
                         vc_lang = _lang_dropdown("Language (optional) / 语种 (可选)")
+                        vc_erxes = _erxes_toggle()
                         with gr.Accordion("Instruct (optional)", open=False):
                             vc_instruct = gr.Textbox(label="Instruct", lines=2)
                         (
@@ -357,9 +388,21 @@ by Xiaomi AI Lab Next-gen Kaldi team.
                         vc_status = gr.Textbox(label="Status / 状态", lines=2)
 
                 def _clone_fn(
-                    text, lang, ref_aud, ref_text, instruct, ns, gs, dn, sp, du, pp, po
+                    text,
+                    lang,
+                    ref_aud,
+                    ref_text,
+                    instruct,
+                    ns,
+                    gs,
+                    dn,
+                    sp,
+                    du,
+                    pp,
+                    po,
+                    erxes_mode=False,
                 ):
-                    return _gen(
+                    return _run_generation(
                         text,
                         lang,
                         ref_aud,
@@ -373,6 +416,7 @@ by Xiaomi AI Lab Next-gen Kaldi team.
                         po,
                         mode="clone",
                         ref_text=ref_text or None,
+                        erxes_mode=erxes_mode,
                     )
 
                 vc_btn.click(
@@ -390,6 +434,7 @@ by Xiaomi AI Lab Next-gen Kaldi team.
                         vc_du,
                         vc_pp,
                         vc_po,
+                        vc_erxes,
                     ],
                     outputs=[vc_audio, vc_status],
                 )
@@ -406,6 +451,7 @@ by Xiaomi AI Lab Next-gen Kaldi team.
                             placeholder="Enter the text you want to synthesize...",
                         )
                         vd_lang = _lang_dropdown()
+                        vd_erxes = _erxes_toggle()
 
                         _AUTO = "Auto"
                         vd_groups = []
@@ -458,8 +504,10 @@ by Xiaomi AI Lab Next-gen Kaldi team.
                             parts.append(v)
                     return ", ".join(parts)
 
-                def _design_fn(text, lang, ns, gs, dn, sp, du, pp, po, *groups):
-                    return _gen(
+                def _design_fn(
+                    text, lang, ns, gs, dn, sp, du, pp, po, erxes_mode, *groups
+                ):
+                    return _run_generation(
                         text,
                         lang,
                         None,
@@ -472,6 +520,7 @@ by Xiaomi AI Lab Next-gen Kaldi team.
                         pp,
                         po,
                         mode="design",
+                        erxes_mode=erxes_mode,
                     )
 
                 vd_btn.click(
@@ -486,6 +535,7 @@ by Xiaomi AI Lab Next-gen Kaldi team.
                         vd_du,
                         vd_pp,
                         vd_po,
+                        vd_erxes,
                     ]
                     + vd_groups,
                     outputs=[vd_audio, vd_status],

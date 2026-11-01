@@ -1,4 +1,18 @@
-# OmniVoice 🌍
+# OmniVoice for erxes 🌍
+
+This fork of [k2-fsa/OmniVoice](https://github.com/k2-fsa/OmniVoice) adds an
+**erxes mode** for Mongolian narration that keeps erxes UI names in English.
+The toggle is available in both Voice Clone and Voice Design. Original
+OmniVoice functionality and Apache-2.0 attribution are retained.
+
+To install this edition after installing the appropriate PyTorch build below:
+
+```bash
+git clone https://github.com/Dulguunzaya/omnivoice-erxes.git
+cd omnivoice-erxes
+pip install -e .
+omnivoice-demo --port 8001
+```
 
 <p align="center">
   <img width="200" height="200" alt="OmniVoice" src="https://zhu-han.github.io/omnivoice/pics/omnivoice.jpg" />
@@ -123,6 +137,15 @@ uv sync
 Try OmniVoice without coding:
 
 - Launch the local web UI: `omnivoice-demo --ip 0.0.0.0 --port 8001`
+
+- For Mongolian erxes walkthroughs, select **Mongolian** and enable
+  **erxes mode — keep UI names in English** in either voice tab. Write your
+  narration in Mongolian and leave UI names in English, for example:
+  `Өнөөдөр SidebarPanel-ийн Properties болон Widgetийг шинэчиллээ.`
+  erxes mode supplies English pronunciations for known erxes terms while
+  retaining the surrounding Mongolian text and suffixes. It controls speech
+  pronunciation; it does not translate an English script into Mongolian.
+  The glossary lives in `omnivoice/utils/erxes.py`.
 
 - Or try it directly on [HuggingFace Space](https://huggingface.co/spaces/k2-fsa/OmniVoice)
 

@@ -71,6 +71,7 @@ from omnivoice.utils.duration import RuleDurationEstimator
 from omnivoice.utils.lang_map import LANG_IDS, LANG_NAMES
 from omnivoice.utils.text import (
     add_punctuation,
+    apply_pronunciation_overrides,
     chunk_text_punctuation,
     normalize_text as _normalize_text,
 )
@@ -187,6 +188,9 @@ class OmniVoiceGenerationConfig:
     audio_chunk_threshold: float = 30.0
     pad_duration: float = 0.1
     fade_duration: float = 0.1
+    # CMU phonemes by term; applied only when encoding synthesis text so that
+    # duration estimation, chunking, and reference transcripts stay unchanged.
+    pronunciation_overrides: Optional[dict[str, str]] = None
 
     @classmethod
     def from_dict(cls, kwargs_dict):
@@ -662,6 +666,8 @@ class OmniVoice(PreTrainedModel):
                     (0 to disable).
                 fade_duration: Fade-in/out curve duration in seconds
                     (0 to disable).
+                pronunciation_overrides: Optional mapping of English terms to
+                    CMU phonemes, applied after timing and text chunking.
         Returns:
             ``audios`` a list of 1-D ``np.ndarray`` with shape ``(T,)`` and
             sampling rate consistent with the model's audio tokenizer
@@ -1302,7 +1308,9 @@ class OmniVoice(PreTrainedModel):
 
         inputs_list = [
             self._prepare_inference_inputs(
-                task.texts[i],
+                apply_pronunciation_overrides(
+                    task.texts[i], gen_config.pronunciation_overrides
+                ),
                 task.target_lens[i],
                 task.ref_texts[i],
                 task.ref_audio_tokens[i],

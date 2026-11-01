@@ -23,6 +23,7 @@ Provides:
 - ``add_punctuation()``: Appends missing end punctuation (Chinese or English).
 - ``normalize_text()``: Optional text normalization (numbers, dates, currency,
   etc.) into their spoken form, while preserving inline control syntax.
+- ``apply_pronunciation_overrides()``: Apply English phonemes to selected terms.
 """
 
 import logging
@@ -30,6 +31,48 @@ import re
 from typing import Callable, List, Optional
 
 logger = logging.getLogger(__name__)
+
+
+def apply_pronunciation_overrides(
+    text: str, overrides: Optional[dict[str, str]] = None
+) -> str:
+    """Replace glossary terms with OmniVoice's bracketed CMU phonemes.
+
+    Match names case-insensitively, including compact component names and
+    space/hyphen/underscore variants. ASCII boundaries allow Mongolian suffixes
+    (``Widgetийг``) while avoiding partial English words (``widgetry``).
+    Existing bracketed pronunciation and non-verbal controls pass through.
+    Apply after duration estimation and chunking: phoneme notation is longer
+    than the words it represents and must not inflate estimated speaking time.
+    """
+    if not overrides:
+        return text
+
+    def key(term):
+        return re.sub(r"[\s_-]+", "", term).lower()
+
+    pronunciations = {
+        key(term): phones for term, phones in overrides.items() if key(term)
+    }
+    terms = [
+        r"[\s_-]*".join(re.escape(part) for part in re.split(r"[\s_-]+", term.strip()))
+        for term in sorted(overrides, key=len, reverse=True)
+        if key(term)
+    ]
+    if not terms:
+        return text
+    pattern = re.compile(
+        r"\[[^\]]*\]|(?<![A-Za-z0-9_])(?P<term>"
+        + "|".join(terms)
+        + r")(?![A-Za-z0-9_])",
+        re.IGNORECASE | re.ASCII,
+    )
+
+    def replace(match):
+        term = match.group("term")
+        return f"[{pronunciations[key(term)]}]" if term else match.group()
+
+    return pattern.sub(replace, text)
 
 
 SPLIT_PUNCTUATION = set(".,;:!?。，；：！？")
